@@ -1,4 +1,4 @@
-# Bottle Defect Inspection System
+# AI Powered Defect Inspection System
 
 A real-time quality control system built with YOLOv8, Flask, and visual LLM integration (Claude AI) for AI-powered defect analysis. Designed for deployment on a production conveyor belt line, the system uses a front-facing camera positioned at the end of the belt to inspect items as they pass through a defined inspection zone, classifying them as defective or clean and generating detailed defect reports for rejected items using vision-language model analysis.
 
