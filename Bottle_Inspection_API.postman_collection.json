@@ -1,0 +1,550 @@
+{
+    "info": {
+        "name": "Bottle Defect Inspection API",
+        "description": "API collection for the Bottle Defect Inspection System (Flask + YOLOv8 Digital Twin).\n\n**How to use:**\n1. Import this file into Postman.\n2. The `base_url` collection variable is pre-set to `http://localhost:5000`. Change it if your server runs elsewhere.\n3. Start the Flask server (`python app.py`) before sending requests.\n4. Each request has an **Example Response** showing what a real response looks like — click the request, then open the \"Examples\" tab to view it.\n5. Tests run automatically when you click **Send** and validate the response structure.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:5000",
+            "type": "string",
+            "description": "Flask server base URL. Change this if running on a different host or port."
+        }
+    ],
+    "item": [
+        {
+            "name": "1 — Health",
+            "item": [
+                {
+                    "name": "Health Check",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/health",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "health"]
+                        },
+                        "description": "Lightweight liveness probe. Returns `{\"status\": \"ok\"}` if the Flask server is up and responding.\n\n**Use this to verify the server is reachable before running other requests.**"
+                    },
+                    "response": [
+                        {
+                            "name": "Server is running",
+                            "originalRequest": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/health",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "health"]
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                { "key": "Content-Type", "value": "application/json" }
+                            ],
+                            "body": "{\n    \"status\": \"ok\"\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                                    "pm.test(\"status is ok\", () => {",
+                                    "    pm.expect(pm.response.json().status).to.eql(\"ok\");",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "2 — Inspection State",
+            "item": [
+                {
+                    "name": "Get Full Status",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/status",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "status"]
+                        },
+                        "description": "Returns the complete digital twin state. Poll this endpoint to drive any external dashboard or monitoring system.\n\n**Response fields:**\n- `total` — cumulative bottle count this session\n- `passed` / `rejected` — counts by verdict\n- `pass_rate` — percentage 0–100, rounded to 1 decimal\n- `current` — the most recently recorded bottle result (object or null)\n- `bottles` — array of last 50 results, oldest first\n- `last_report` — ISO-8601 timestamp of last record or last reset\n- `paused` — `true` when recording is suspended"
+                    },
+                    "response": [
+                        {
+                            "name": "Active session — 3 bottles logged",
+                            "originalRequest": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/status",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "status"]
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                { "key": "Content-Type", "value": "application/json" }
+                            ],
+                            "body": "{\n    \"total\": 3,\n    \"passed\": 2,\n    \"rejected\": 1,\n    \"pass_rate\": 66.7,\n    \"paused\": false,\n    \"last_report\": \"2026-05-10T14:32:07.441221\",\n    \"current\": {\n        \"id\": 3,\n        \"label\": \"marked\",\n        \"confidence\": 0.9821,\n        \"passed\": false,\n        \"timestamp\": \"2026-05-10T14:32:07.441221\"\n    },\n    \"bottles\": [\n        {\n            \"id\": 1,\n            \"label\": \"unmarked\",\n            \"confidence\": 0.9654,\n            \"passed\": true,\n            \"timestamp\": \"2026-05-10T14:31:51.102384\"\n        },\n        {\n            \"id\": 2,\n            \"label\": \"unmarked\",\n            \"confidence\": 0.8812,\n            \"passed\": true,\n            \"timestamp\": \"2026-05-10T14:31:59.773100\"\n        },\n        {\n            \"id\": 3,\n            \"label\": \"marked\",\n            \"confidence\": 0.9821,\n            \"passed\": false,\n            \"timestamp\": \"2026-05-10T14:32:07.441221\"\n        }\n    ]\n}"
+                        },
+                        {
+                            "name": "Empty session — no bottles yet",
+                            "originalRequest": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/api/status",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "status"]
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                { "key": "Content-Type", "value": "application/json" }
+                            ],
+                            "body": "{\n    \"total\": 0,\n    \"passed\": 0,\n    \"rejected\": 0,\n    \"pass_rate\": 0.0,\n    \"paused\": false,\n    \"last_report\": \"2026-05-10T14:30:00.000000\",\n    \"current\": null,\n    \"bottles\": []\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                                    "",
+                                    "pm.test(\"Has all required fields\", () => {",
+                                    "    const j = pm.response.json();",
+                                    "    [\"total\",\"passed\",\"rejected\",\"pass_rate\",\"current\",\"bottles\",\"last_report\",\"paused\"]",
+                                    "        .forEach(k => pm.expect(j, `missing: ${k}`).to.have.property(k));",
+                                    "});",
+                                    "",
+                                    "pm.test(\"passed + rejected === total\", () => {",
+                                    "    const j = pm.response.json();",
+                                    "    pm.expect(j.passed + j.rejected).to.eql(j.total);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"bottles has at most 50 items\", () => {",
+                                    "    pm.expect(pm.response.json().bottles.length).to.be.at.most(50);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Reset Session",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Content-Type", "value": "application/json" }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "",
+                            "options": { "raw": { "language": "json" } }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/reset",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "reset"]
+                        },
+                        "description": "Clears all counters (`total`, `passed`, `rejected`), empties the `bottles` history, and resets `last_report` to now.\n\nDoes **not** affect the paused/running state of the inference pipeline.\n\nNo request body required."
+                    },
+                    "response": [
+                        {
+                            "name": "Reset successful",
+                            "originalRequest": {
+                                "method": "POST",
+                                "header": [
+                                    { "key": "Content-Type", "value": "application/json" }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/reset",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "reset"]
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                { "key": "Content-Type", "value": "application/json" }
+                            ],
+                            "body": "{\n    \"ok\": true\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                                    "pm.test(\"ok is true\", () => pm.expect(pm.response.json().ok).to.be.true);",
+                                    "",
+                                    "pm.sendRequest(`${pm.variables.get(\"base_url\")}/api/status`, (err, res) => {",
+                                    "    pm.test(\"total reset to 0\", () => pm.expect(res.json().total).to.eql(0));",
+                                    "    pm.test(\"bottles array is empty\", () => pm.expect(res.json().bottles).to.be.empty);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "3 — Pipeline Control",
+            "item": [
+                {
+                    "name": "Pause Recording",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Content-Type", "value": "application/json" }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "",
+                            "options": { "raw": { "language": "json" } }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/pause",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "pause"]
+                        },
+                        "description": "Suspends recording to the twin state. The camera stream and YOLO inference continue running (the live feed stays active), but no new results are appended to `bottles` and counters stop incrementing.\n\nThe live feed overlay will show `⏸ PAUSED — recording suspended`.\n\nNo request body required."
+                    },
+                    "response": [
+                        {
+                            "name": "Paused successfully",
+                            "originalRequest": {
+                                "method": "POST",
+                                "header": [
+                                    { "key": "Content-Type", "value": "application/json" }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/pause",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "pause"]
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                { "key": "Content-Type", "value": "application/json" }
+                            ],
+                            "body": "{\n    \"ok\": true,\n    \"paused\": true\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                                    "pm.test(\"paused is true\", () => {",
+                                    "    const j = pm.response.json();",
+                                    "    pm.expect(j.ok).to.be.true;",
+                                    "    pm.expect(j.paused).to.be.true;",
+                                    "});",
+                                    "pm.sendRequest(`${pm.variables.get(\"base_url\")}/api/status`, (err, res) => {",
+                                    "    pm.test(\"status reflects paused=true\", () => pm.expect(res.json().paused).to.be.true);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Resume Recording",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Content-Type", "value": "application/json" }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "",
+                            "options": { "raw": { "language": "json" } }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/resume",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "resume"]
+                        },
+                        "description": "Resumes recording after a pause. Bottle results will start being logged immediately on the next qualifying detection.\n\nNo request body required."
+                    },
+                    "response": [
+                        {
+                            "name": "Resumed successfully",
+                            "originalRequest": {
+                                "method": "POST",
+                                "header": [
+                                    { "key": "Content-Type", "value": "application/json" }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/resume",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["api", "resume"]
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                { "key": "Content-Type", "value": "application/json" }
+                            ],
+                            "body": "{\n    \"ok\": true,\n    \"paused\": false\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                                    "pm.test(\"paused is false\", () => {",
+                                    "    const j = pm.response.json();",
+                                    "    pm.expect(j.ok).to.be.true;",
+                                    "    pm.expect(j.paused).to.be.false;",
+                                    "});",
+                                    "pm.sendRequest(`${pm.variables.get(\"base_url\")}/api/status`, (err, res) => {",
+                                    "    pm.test(\"status reflects paused=false\", () => pm.expect(res.json().paused).to.be.false);",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "4 — Dashboard",
+            "item": [
+                {
+                    "name": "Load Dashboard (HTML)",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/",
+                            "host": ["{{base_url}}"],
+                            "path": [""]
+                        },
+                        "description": "Returns the HTML dashboard page. Open `http://localhost:5000` in a browser for the full interactive UI — Postman will only show the raw HTML source."
+                    },
+                    "response": [
+                        {
+                            "name": "Dashboard HTML returned",
+                            "originalRequest": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/",
+                                    "host": ["{{base_url}}"],
+                                    "path": [""]
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "html",
+                            "header": [
+                                { "key": "Content-Type", "value": "text/html; charset=utf-8" }
+                            ],
+                            "body": "<!DOCTYPE html>\n<html lang=\"en\">\n...\n<!-- Full dashboard HTML -->\n</html>"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                                    "pm.test(\"Returns HTML\", () => {",
+                                    "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/html\");",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "MJPEG Stream",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/stream",
+                            "host": ["{{base_url}}"],
+                            "path": ["stream"]
+                        },
+                        "description": "Streams live MJPEG frames with YOLO inference overlay.\n\n⚠️ **Postman will hang** after the first frame boundary — this is a live infinite stream. Click **Send and Download** or open this URL directly in a browser (`<img src=\"http://localhost:5000/stream\">`) or VLC.\n\nContent-Type returned: `multipart/x-mixed-replace; boundary=frame`"
+                    },
+                    "response": [
+                        {
+                            "name": "Stream boundary header",
+                            "originalRequest": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "{{base_url}}/stream",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["stream"]
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "text",
+                            "header": [
+                                { "key": "Content-Type", "value": "multipart/x-mixed-replace; boundary=frame" }
+                            ],
+                            "body": "--frame\r\nContent-Type: image/jpeg\r\n\r\n<binary JPEG data>\r\n--frame\r\n..."
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                                    "pm.test(\"multipart MJPEG content type\", () => {",
+                                    "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"multipart/x-mixed-replace\");",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "5 — Quick Workflow",
+            "description": "Run these in order to exercise the full API in one go.",
+            "item": [
+                {
+                    "name": "Step 1 — Verify server is up",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": { "raw": "{{base_url}}/api/health", "host": ["{{base_url}}"], "path": ["api","health"] }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test(\"Server up\", () => pm.response.to.have.status(200));",
+                                    "pm.collectionVariables.set(\"server_ok\", pm.response.json().status === \"ok\");"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Step 2 — Snapshot current state",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": { "raw": "{{base_url}}/api/status", "host": ["{{base_url}}"], "path": ["api","status"] }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const j = pm.response.json();",
+                                    "pm.collectionVariables.set(\"snapshot_total\", j.total);",
+                                    "console.log(`Current state — total:${j.total} passed:${j.passed} rejected:${j.rejected} paused:${j.paused}`);"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Step 3 — Pause recording",
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": { "mode": "raw", "raw": "" },
+                        "url": { "raw": "{{base_url}}/api/pause", "host": ["{{base_url}}"], "path": ["api","pause"] }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": ["pm.test(\"Paused\", () => pm.expect(pm.response.json().paused).to.be.true);"]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Step 4 — Resume recording",
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": { "mode": "raw", "raw": "" },
+                        "url": { "raw": "{{base_url}}/api/resume", "host": ["{{base_url}}"], "path": ["api","resume"] }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": ["pm.test(\"Resumed\", () => pm.expect(pm.response.json().paused).to.be.false);"]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Step 5 — Reset session",
+                    "request": {
+                        "method": "POST",
+                        "header": [{ "key": "Content-Type", "value": "application/json" }],
+                        "body": { "mode": "raw", "raw": "" },
+                        "url": { "raw": "{{base_url}}/api/reset", "host": ["{{base_url}}"], "path": ["api","reset"] }
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test(\"Reset ok\", () => pm.expect(pm.response.json().ok).to.be.true);",
+                                    "pm.sendRequest(`${pm.variables.get(\"base_url\")}/api/status`, (err, res) => {",
+                                    "    pm.test(\"Counts zeroed\", () => pm.expect(res.json().total).to.eql(0));",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,16 @@
+# Environment - contains API key
+.env
+
+# Runtime artifacts
+saved_frames/
+
+# Python bytecode
+__pycache__/
+
+# Dataset files
+dataset/
+dataset_split/
+
+# YOLOv8 training outputs and model weights
+runs/
+yolov8s-cls.pt

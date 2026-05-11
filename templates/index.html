@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bottle Defect Inspection — Digital Twin</title>
+<style>
+:root {
+    --bg:      #090d12;
+    --surface: #111820;
+    --surf2:   #192030;
+    --border:  #1d2a38;
+    --border2: #253447;
+    --text:    #c9d5e0;
+    --muted:   #5a7080;
+    --green:   #00c853;
+    --red:     #f44336;
+    --amber:   #ff8f00;
+    --blue:    #29b6f6;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px;
+}
+
+body { display: flex; flex-direction: column; }
+
+/*Header*/
+header {
+    flex-shrink: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 9px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.hdr-left { display: flex; align-items: baseline; gap: 12px; }
+
+header h1 {
+    font-size: 0.88rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--blue);
+    font-weight: bold;
+}
+
+.sys-tag {
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.conn-badge {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.68rem;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.conn-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: #2a3a4a;
+    transition: background 0.4s, box-shadow 0.4s;
+}
+.conn-dot.online {
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+}
+
+/* Workspace grid */
+.workspace {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 612px minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    gap: 10px;
+    padding: 10px;
+    overflow: hidden;
+}
+
+/* Panel base */
+.panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 13px 14px;
+    min-height: 0;
+    min-width: 0;        /* allow grid item to shrink below content size */
+    overflow: hidden;    /* clip anything that still escapes */
+}
+
+.panel-lbl {
+    font-size: 0.58rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+}
+
+/* Left: video (spans all 3 rows) */
+.video-pane {
+    grid-row: 1 / 4;
+    display: flex;
+    flex-direction: column;
+}
+
+#feed {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    display: block;
+    object-fit: contain;
+    border-radius: 3px;
+    border: 1px solid var(--border2);
+    background: #000;
+}
+
+/* Stats bar  */
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.stat {
+    background: var(--surf2);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 11px 8px;
+    text-align: center;
+}
+
+.stat-num {
+    font-size: 1.75rem;
+    font-weight: bold;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-lbl {
+    font-size: 0.58rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-top: 5px;
+}
+
+#s-total    .stat-num { color: var(--blue); }
+#s-passed   .stat-num { color: var(--green); }
+#s-rejected .stat-num { color: var(--red); }
+#s-rate     .stat-num { color: var(--amber); }
+
+/* Conveyor belt */
+.belt-wrap {
+    overflow-x: auto;
+    padding-bottom: 6px;
+}
+
+.belt-wrap::-webkit-scrollbar { height: 3px; }
+.belt-wrap::-webkit-scrollbar-track { background: var(--bg); }
+.belt-wrap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.belt-track {
+    display: flex;
+    align-items: center;
+    min-width: max-content;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+}
+
+.bn {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: bold;
+    flex-shrink: 0;
+    border: 2px solid;
+    cursor: default;
+}
+
+.bn.pass {
+    background: rgba(0,200,83,0.11);
+    border-color: var(--green);
+    color: var(--green);
+}
+
+.bn.fail {
+    background: rgba(244,67,54,0.11);
+    border-color: var(--red);
+    color: var(--red);
+}
+
+.bn.scan {
+    background: rgba(255,143,0,0.11);
+    border-color: var(--amber);
+    color: var(--amber);
+    animation: scan-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes scan-pulse {
+    0%,100% { opacity: 1; transform: scale(1); box-shadow: none; }
+    50%      { opacity: 0.5; transform: scale(0.86); box-shadow: 0 0 12px var(--amber); }
+}
+
+.bl {
+    width: 14px; height: 2px;
+    background: var(--border2);
+    flex-shrink: 0;
+}
+
+/* Log pane */
+.log-pane {
+    grid-column: 2;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;    /* re-declare so flex children can still scroll internally */
+}
+
+.log-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.btn-base {
+    background: transparent;
+    padding: 4px 13px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    border: 1px solid;
+}
+
+.reset-btn {
+    border-color: var(--red);
+    color: var(--red);
+}
+.reset-btn:hover  { background: rgba(244,67,54,0.12); }
+.reset-btn:active { background: rgba(244,67,54,0.22); }
+
+.pause-btn {
+    border-color: var(--muted);
+    color: var(--muted);
+}
+.pause-btn:hover  { background: rgba(90,112,128,0.12); }
+.pause-btn.paused {
+    border-color: var(--amber);
+    color: var(--amber);
+}
+.pause-btn.paused:hover { background: rgba(255,143,0,0.12); }
+
+.paused-badge {
+    display: none;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-weight: bold;
+    letter-spacing: 0.12em;
+    background: rgba(255,143,0,0.14);
+    color: var(--amber);
+    border: 1px solid var(--amber);
+    animation: badge-blink 1.3s ease-in-out infinite;
+}
+@keyframes badge-blink {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.4; }
+}
+
+.log-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.log-scroll::-webkit-scrollbar { width: 4px; }
+.log-scroll::-webkit-scrollbar-track { background: var(--bg); }
+.log-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+
+thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface);
+    text-align: left;
+    padding: 5px 8px;
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+}
+
+tbody td {
+    padding: 5px 8px;
+    border-bottom: 1px solid rgba(29,42,56,0.7);
+    font-size: 0.74rem;
+    vertical-align: middle;
+}
+
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td      { background: rgba(255,255,255,0.02); }
+
+.badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-weight: bold;
+    letter-spacing: 0.06em;
+}
+
+.badge.pass { background: rgba(0,200,83,0.14); color: var(--green); }
+.badge.fail { background: rgba(244,67,54,0.14); color: var(--red); }
+
+.c-id   { color: var(--muted); }
+.c-conf { font-variant-numeric: tabular-nums; }
+.c-time { color: var(--muted); font-size: 0.68rem; }
+
+.empty-cell {
+    text-align: center;
+    color: var(--muted);
+    padding: 24px !important;
+    font-size: 0.75rem;
+}
+
+/* Analyse button */
+.analyse-btn {
+    background: transparent;
+    border: 1px solid var(--amber);
+    color: var(--amber);
+    padding: 2px 9px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: background 0.2s, opacity 0.2s;
+    white-space: nowrap;
+}
+.analyse-btn:hover   { background: rgba(255,143,0,0.12); }
+.analyse-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.btn-spinner {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border: 2px solid rgba(255,143,0,0.3);
+    border-top-color: var(--amber);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+}
+
+/* Modal overlay */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.72);
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    backdrop-filter: blur(3px);
+}
+.modal-overlay.open { display: flex; }
+
+.modal {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    width: 620px;
+    max-width: 92vw;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+
+.modal-hdr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.modal-title {
+    font-size: 0.72rem;
+    color: var(--blue);
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    font-weight: bold;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: color 0.15s;
+}
+.modal-close:hover { color: var(--text); }
+
+.modal-body {
+    padding: 20px 22px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 30px 0;
+    color: var(--muted);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+}
+.modal-spinner-wheel {
+    width: 30px; height: 30px;
+    border: 3px solid rgba(41,182,246,0.15);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.85s linear infinite;
+}
+
+.report-meta {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+}
+
+.report-text {
+    font-size: 0.82rem;
+    line-height: 1.75;
+    color: var(--text);
+    white-space: pre-wrap;
+}
+
+.report-error {
+    color: var(--red);
+    font-size: 0.78rem;
+    line-height: 1.6;
+}
+</style>
+</head>
+<body>
+
+<header>
+    <div class="hdr-left">
+        <h1>Bottle Defect Inspection</h1>
+        <span class="sys-tag">Digital Twin System</span>
+    </div>
+    <div class="conn-badge">
+        <div class="conn-dot" id="conn-dot"></div>
+        <span id="conn-lbl">Connecting…</span>
+    </div>
+</header>
+
+<div class="workspace">
+
+    <!-- Video feed (left, all rows) -->
+    <div class="panel video-pane">
+        <div class="panel-lbl">Live Inspection Feed</div>
+        <img id="feed" src="/stream" alt="Webcam inference feed">
+    </div>
+
+    <!-- Stats bar (right, row 1) -->
+    <div class="panel">
+        <div class="panel-lbl">Inspection Statistics</div>
+        <div class="stats-row">
+            <div class="stat" id="s-total">
+                <div class="stat-num" id="v-total">0</div>
+                <div class="stat-lbl">Total Inspected</div>
+            </div>
+            <div class="stat" id="s-passed">
+                <div class="stat-num" id="v-passed">0</div>
+                <div class="stat-lbl">Passed</div>
+            </div>
+            <div class="stat" id="s-rejected">
+                <div class="stat-num" id="v-rejected">0</div>
+                <div class="stat-lbl">Rejected</div>
+            </div>
+            <div class="stat" id="s-rate">
+                <div class="stat-num" id="v-rate">—</div>
+                <div class="stat-lbl">Pass Rate</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conveyor belt (right, row 2) -->
+    <div class="panel">
+        <div class="panel-lbl">Digital Twin — Conveyor Belt</div>
+        <div class="belt-wrap" id="belt-wrap">
+            <div class="belt-track" id="belt-track">
+                <div class="bn scan" title="Currently scanning">?</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inspection log (right, row 3) -->
+    <div class="panel log-pane">
+        <div class="log-header">
+            <div class="panel-lbl" style="margin:0">Inspection Log</div>
+            <div style="display:flex;align-items:center;gap:7px;">
+                <span class="paused-badge" id="paused-badge">PAUSED</span>
+                <button class="btn-base pause-btn" id="pause-btn">⏸ Pause</button>
+                <button class="btn-base reset-btn" id="reset-btn">↺ Reset</button>
+            </div>
+        </div>
+        <div class="log-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:6%">#</th>
+                        <th style="width:12%">Result</th>
+                        <th style="width:20%">Label</th>
+                        <th style="width:14%">Confidence</th>
+                        <th style="width:24%">Timestamp</th>
+                        <th style="width:24%">AI Action</th>
+                    </tr>
+                </thead>
+                <tbody id="log-body">
+                    <tr><td colspan="6" class="empty-cell">Awaiting first bottle…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- AI Analysis modal -->
+<div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+        <div class="modal-hdr">
+            <span class="modal-title" id="modal-title">AI Analysis</span>
+            <button class="modal-close" id="modal-close" title="Close">✕</button>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
+    </div>
+</div>
+
+<script>
+    'use strict';
+
+    const $ = id => document.getElementById(id);
+
+    const vTotal    = $('v-total');
+    const vPassed   = $('v-passed');
+    const vRejected = $('v-rejected');
+    const vRate     = $('v-rate');
+    const connDot   = $('conn-dot');
+    const connLbl   = $('conn-lbl');
+    const beltTrack = $('belt-track');
+    const beltWrap  = $('belt-wrap');
+    const logBody   = $('log-body');
+
+    let prevTotal  = -1;
+    let isPaused   = false;
+    let analysing  = false;
+
+    /* Connection indicator */
+    function setConn(online) {
+        connDot.className = 'conn-dot' + (online ? ' online' : '');
+        connLbl.textContent = online ? 'Connected' : 'Disconnected';
+    }
+
+    /* Pause state */
+    function applyPaused(paused) {
+        isPaused = paused;
+        const btn   = $('pause-btn');
+        const badge = $('paused-badge');
+        if (paused) {
+            btn.textContent  = '▶ Resume';
+            btn.className    = 'btn-base pause-btn paused';
+            badge.style.display = 'inline-block';
+        } else {
+            btn.textContent  = '⏸ Pause';
+            btn.className    = 'btn-base pause-btn';
+            badge.style.display = 'none';
+        }
+    }
+
+    /* Helpers */
+    function fmtConf(c) { return (c * 100).toFixed(1) + '%'; }
+    function fmtTime(iso) { return new Date(iso).toLocaleTimeString(); }
+
+    /* Conveyor belt */
+    function renderBelt(bottles) {
+        beltTrack.innerHTML = '';
+        const slice = bottles.slice(-24);
+
+        slice.forEach((b, i) => {
+            if (i > 0) {
+                const link = document.createElement('div');
+                link.className = 'bl';
+                beltTrack.appendChild(link);
+            }
+            const node = document.createElement('div');
+            node.className = 'bn ' + (b.passed ? 'pass' : 'fail');
+            node.textContent = b.passed ? '✓' : '✗';
+            node.title = `#${b.id}  ${b.label}  ${fmtConf(b.confidence)}`;
+            beltTrack.appendChild(node);
+        });
+
+        // Always append scanning node at the right end
+        if (slice.length > 0) {
+            const link = document.createElement('div');
+            link.className = 'bl';
+            beltTrack.appendChild(link);
+        }
+        const scan = document.createElement('div');
+        scan.className = 'bn scan';
+        scan.title = 'Currently scanning';
+        scan.textContent = '?';
+        beltTrack.appendChild(scan);
+
+        // Auto-scroll to newest (right end)
+        beltWrap.scrollLeft = beltWrap.scrollWidth;
+    }
+
+    /* Inspection log */
+    function renderLog(bottles) {
+        if (!bottles.length) {
+            logBody.innerHTML = '<tr><td colspan="6" class="empty-cell">Awaiting first bottle…</td></tr>';
+            return;
+        }
+        logBody.innerHTML = bottles.slice().reverse().map(b => {
+            const badge  = `<span class="badge ${b.passed ? 'pass' : 'fail'}">${b.passed ? 'PASS' : 'REJECT'}</span>`;
+            const action = b.passed
+                ? ''
+                : `<button class="analyse-btn" onclick="analyseBottle(${b.id})"${analysing ? ' disabled' : ''}>✦ Analyse</button>`;
+            return `<tr>
+                <td class="c-id">#${b.id}</td>
+                <td>${badge}</td>
+                <td>${b.label}</td>
+                <td class="c-conf">${fmtConf(b.confidence)}</td>
+                <td class="c-time">${fmtTime(b.timestamp)}</td>
+                <td>${action}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    /* AI Analysis */
+    function setAnalysing(active) {
+        analysing = active;
+        document.querySelectorAll('.analyse-btn').forEach(btn => {
+            btn.disabled = active;
+        });
+    }
+
+    function openModal(title, bodyHtml) {
+        $('modal-title').textContent = title;
+        $('modal-body').innerHTML    = bodyHtml;
+        $('modal-overlay').classList.add('open');
+    }
+
+    function closeModal() {
+        $('modal-overlay').classList.remove('open');
+    }
+
+    async function analyseBottle(id) {
+        if (analysing) return;
+        setAnalysing(true);
+
+        const padded = String(id).padStart(4, '0');
+        openModal(
+            `AI Analysis — Bottle #${padded}`,
+            `<div class="modal-spinner">
+                <div class="modal-spinner-wheel"></div>
+                <span>Sending to Claude for analysis…</span>
+             </div>`
+        );
+
+        try {
+            const res  = await fetch(`/api/analyse/${id}`, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok || data.error) {
+                $('modal-body').innerHTML =
+                    `<p class="report-error">Analysis failed: ${data.error || 'Unknown error'}</p>`;
+            } else {
+                $('modal-body').innerHTML = `
+                    <div class="report-meta">
+                        Bottle #${String(data.bottle_id).padStart(4,'0')} &nbsp;·&nbsp; ${new Date().toLocaleTimeString()} &nbsp;·&nbsp; Analysed by Claude
+                    </div>
+                    <div class="report-text">${data.report}</div>`;
+            }
+        } catch (e) {
+            $('modal-body').innerHTML =
+                `<p class="report-error">Request failed: ${e.message}</p>`;
+        } finally {
+            setAnalysing(false);
+        }
+    }
+
+    $('modal-close').addEventListener('click', closeModal);
+    $('modal-overlay').addEventListener('click', e => {
+        if (e.target === $('modal-overlay')) closeModal();
+    });
+
+    /* Main update (called every second) */
+    function applyState(data) {
+        vTotal.textContent    = data.total;
+        vPassed.textContent   = data.passed;
+        vRejected.textContent = data.rejected;
+        vRate.textContent     = data.total ? data.pass_rate + '%' : '—';
+
+        // Pause button syncs on every poll (server is source of truth)
+        if (data.paused !== undefined) applyPaused(data.paused);
+
+        // Only rebuild DOM when the bottle list changed
+        if (data.total !== prevTotal) {
+            renderBelt(data.bottles);
+            renderLog(data.bottles);
+            prevTotal = data.total;
+        }
+    }
+
+    /* Polling */
+    async function poll() {
+        try {
+            const res = await fetch('/api/status');
+            if (!res.ok) throw new Error('bad status');
+            applyState(await res.json());
+            setConn(true);
+        } catch (_) {
+            setConn(false);
+        }
+    }
+
+    /* Pause / Resume */
+    $('pause-btn').addEventListener('click', async () => {
+        try {
+            const endpoint = isPaused ? '/api/resume' : '/api/pause';
+            const res = await fetch(endpoint, { method: 'POST' });
+            if (!res.ok) throw new Error();
+            applyPaused(!isPaused);   // optimistic update; poll will confirm
+        } catch (_) {
+            alert('Request failed — is the server running?');
+        }
+    });
+
+    /* Reset */
+    $('reset-btn').addEventListener('click', async () => {
+        if (!confirm('Reset all inspection data? This cannot be undone.')) return;
+        try {
+            const res = await fetch('/api/reset', { method: 'POST' });
+            if (!res.ok) throw new Error();
+            prevTotal = -1;
+            applyState({ total: 0, passed: 0, rejected: 0, pass_rate: 0, bottles: [], paused: isPaused });
+        } catch (_) {
+            alert('Reset failed — is the server running?');
+        }
+    });
+
+    /* Boot */
+    poll();
+    setInterval(poll, 1000);
+</script>
+</body>
+</html>
